@@ -9,10 +9,10 @@ WORKDIR /app
 
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
-      apt-get update && \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES && \
-      apt-get clean && \
-      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
@@ -33,6 +33,11 @@ ENV NODE_ENV=production
 # Allow non-root user to write temp files during runtime/tests.
 RUN chown -R node:node /app
 
+# Create OpenClaw config to allow remote dashboard access (no device pairing)
+RUN mkdir -p /home/node/.openclaw && \
+    echo '{"controlUi":{"allowInsecureAuth":true}}' > /home/node/.openclaw/openclaw.json && \
+    chown -R node:node /home/node/.openclaw
+
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
@@ -41,7 +46,7 @@ USER node
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
 #
-# For container platforms requiring external health checks:
-#   1. Set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD env var
-#   2. Override CMD: ["node","dist/index.js","gateway","--allow-unconfigured","--bind","lan"]
+# Use "--bind","lan" for LAN access (0.0.0.0) in Docker/Fly.io environments.
+# Use "--port","3000" to set the listening port.
+
 CMD ["node", "dist/index.js", "gateway", "--allow-unconfigured", "--port", "3000", "--bind", "lan"]
